@@ -1,0 +1,32 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "data": {
+                    "imap_host": "IMAP Host",
+                    "imap_port": "IMAP Port",
+                    "imap_username": "IMAP Username",
+                    "imap_password": "IMAP Password",
+                    "db_host": "Database Host",
+                    "db_port": "Database Port",
+                    "db_username": "Database Username",
+                    "db_password": "Database Password",
+                    "db_name": "Database Name",
+                    "scan_interval": "Scan Interval (minutes)",
+                    "mqtt_topic": "MQTT Topic for Delivery Codes",
+                    "mqtt_status_topic": "MQTT Topic for Status Messages",
+                    "mqtt_username": "MQTT Username",
+                    "mqtt_password": "MQTT Password",
+                    "mqtt_host": "MQTT Broker Host",
+                    "mqtt_port": "MQTT Broker Port",
+                    "button_entity_id": "Name of the helper button"
+                },
+                "title": "Configure DoorDrop"
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to connect",
+            "unknown": "An unknown error occurred"
+        }
+    }
+}

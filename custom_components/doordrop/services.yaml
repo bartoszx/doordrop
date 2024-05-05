@@ -1,0 +1,6 @@
+add_shipment:
+  description: "Add a new shipment"
+  fields:
+    code:
+      description: "Shipment code"
+      example: "1234567890"

@@ -1,0 +1,3 @@
+- sensor ruchu RCWL-0516
+- ekran lcd_pcf8574
+- barcode EV-ER08 https://a.aliexpress.com/_EyW0nvV (schematic GM67)
