@@ -2,6 +2,7 @@
 #include <PubSubClient.h>
 #include "mqtt.h"
 #include "secrets.h" // Twój plik z danymi do WiFi i MQTT
+#include <ArduinoJson.h>
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);

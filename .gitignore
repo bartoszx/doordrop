@@ -1,3 +1,6 @@
 secrets.cpp
 .vscode
 scanner/secrets.cpp
+custom_components/.DS_Store
+.DS_Store
+custom_components/doordrop/__pycache__/
