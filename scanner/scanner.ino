@@ -3,17 +3,22 @@
 #include <SoftwareSerial.h>
 #include <ESP8266WiFi.h>
 #include "mqtt.h"
-#include "secrets.h" // Twój plik z danymi do WiFi i MQTT
+#include "secrets.h" // Your file with WiFi and MQTT credentials
 
-#define BARCODE_POWER_PIN D7
+#define BARCODE_POWER_PIN D8
 #define MOTION_SENSOR_PIN D6
 #define LCD_ADDRESS 0x27
 #define LCD_COLUMNS 16
 #define LCD_ROWS 2
-#define MOTION_DELAY_MS 5000 // 5 sekund
-#define SCAN_DURATION_MS 10000 // 10 sekund
+#define MOTION_DELAY_MS 5000 // 5 seconds
+#define SCAN_DURATION_MS 10000 // 10 seconds
+#define LCD_SCL D2
+#define LCD_SDA D1
+#define BARCODE_TX D3
+#define BARCODE_RX D4
+#define WELCOME_LCD_MSG "Zeskanuj kod paczki"
 
-SoftwareSerial barcodeScanner(D4, D3);
+SoftwareSerial barcodeScanner(BARCODE_TX, BARCODE_RX);
 LiquidCrystal_I2C lcd(LCD_ADDRESS, LCD_COLUMNS, LCD_ROWS);
 
 unsigned long lastMotionTime = 0;
@@ -36,21 +41,21 @@ void setup() {
     Serial.begin(9600);
     barcodeScanner.begin(9600);
     pinMode(BARCODE_POWER_PIN, OUTPUT);
-    pinMode(MOTION_SENSOR_PIN, INPUT_PULLUP);
+    pinMode(MOTION_SENSOR_PIN, INPUT);
 
-    Wire.begin(D2, D1);
+    Wire.begin(LCD_SCL, LCD_SDA);
     lcd.init();
     lcd.backlight();
     lcd.setCursor(0, 0);
-    lcd.print("Zeskanuj kod");
+    lcd.print("Scan code");
 
-    connectToWiFi(); // Połączenie z WiFi
+    connectToWiFi(); // Connect to WiFi
     setupMQTT();
-    connectToMQTT(); // Połączenie z MQTT
+    connectToMQTT(); // Connect to MQTT
 }
 
 void loop() {
-    mqttLoop(); // Obsługa komunikatów MQTT
+    mqttLoop(); // MQTT message handling
 
     if (digitalRead(MOTION_SENSOR_PIN) == HIGH) {
         lastMotionTime = millis();
@@ -61,8 +66,8 @@ void loop() {
             lcd.backlight();
             lcd.clear();
             lcd.setCursor(0, 0);
-            lcd.print("Zeskanuj kod");
-            Serial.println("Zeskanuj kod");
+            lcd.print(WELCOME_LCD_MSG); //Scan code
+            Serial.println("Scan code");
         }
     }
 
@@ -71,12 +76,12 @@ void loop() {
         motionDetected = false;
         scanning = false;
         lcd.noBacklight();
-        Serial.println("Ekran i skaner wyłączone z powodu braku ruchu");
+        Serial.println("Screen and scanner turned off due to no motion");
     }
 
     if (scanning && barcodeScanner.available()) {
         String receivedString = barcodeScanner.readStringUntil('\n');
-        receivedString.trim(); // Usuwa białe znaki na początku i na końcu
+        receivedString.trim(); // Removes white space at the beginning and end
         if (isAlphaNumeric(receivedString)) {
             Serial.print("Received barcode: ");
             Serial.println(receivedString);
@@ -84,14 +89,14 @@ void loop() {
             lcd.setCursor(0, 0);
             lcd.print("Kod: ");
             lcd.print(receivedString);
-            publishToMQTT(receivedString.c_str()); // Publikuj zeskanowany kod do MQTT
-            delay(5000); // Wyświetl kod przez 5 sekund
-            lcd.setCursor(0, 1); // Ustawienie kursora w drugim wierszu
-            lcd.print("Zeskanuj kod"); // Przywracanie komunikatu po wyświetleniu kodu
+            publishToMQTT(receivedString.c_str()); // Publish scanned code to MQTT
+            delay(5000); // Display code for 5 seconds
+            lcd.setCursor(0, 1); // Set cursor in the second row
+            lcd.print(WELCOME_LCD_MSG); // Restore message after displaying code
         }
     }
 
-    delay(100); // Zmniejszyłem opóźnienie, aby szybciej reagować na ruch
+    delay(100); // Reduced delay to respond faster to motion
 }
 
 bool isAlphaNumeric(String str) {
