@@ -114,11 +114,12 @@ class ShipmentTrackerSensor(Entity):
                     if isinstance(response_part, tuple):
                         msg = email.message_from_bytes(response_part[1])
                         body = self._get_email_body(msg)
-                        provider = self.identify_provider(body)
-                        if provider:
-                            extracted_code = self.extract_code(body, provider)
-                            if extracted_code:
-                                self.hass.async_add_executor_job(self.add_to_database, extracted_code)
+                        if body:  # Ensure body is not None
+                            provider = self.identify_provider(body)
+                            if provider:
+                                extracted_code = self.extract_code(body, provider)
+                                if extracted_code:
+                                    self.hass.async_add_executor_job(self.add_to_database, extracted_code)
             server.close()
             server.logout()
         except Exception as e:
@@ -142,9 +143,12 @@ class ShipmentTrackerSensor(Entity):
         if msg.is_multipart():
             for part in msg.walk():
                 if part.get_content_type() == 'text/plain':
-                    return part.get_payload(decode=True).decode()
+                    payload = part.get_payload(decode=True)
+                    return payload.decode() if payload else None
         else:
-            return msg.get_payload(decode=True).decode()
+            payload = msg.get_payload(decode=True)
+            return payload.decode() if payload else None
+        return None
 
     def identify_provider(self, email_body):
         """Identify the provider based on the email content."""
