@@ -23,7 +23,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     """Set up the sensor platform from a config entry."""
     config = config_entry.data
 
-    # You can extract the configuration variables directly or pass them through
     imap_username = config[CONF_IMAP_USERNAME]
     imap_password = config[CONF_IMAP_PASSWORD]
     imap_host = config[CONF_IMAP_HOST]
@@ -72,6 +71,7 @@ class ShipmentTrackerSensor(Entity):
             update_method=self._update,
             update_interval=timedelta(minutes=scan_interval)
         )
+        self._patterns = PATTERNS  # Ładowanie wzorców
 
     async def async_added_to_hass(self):
         await self._coordinator.async_config_entry_first_refresh()
@@ -114,16 +114,36 @@ class ShipmentTrackerSensor(Entity):
                     if isinstance(response_part, tuple):
                         msg = email.message_from_bytes(response_part[1])
                         body = self._get_email_body(msg)
-                        extracted_code = self.extract_code(body)
-                        if extracted_code:
-                            # Properly schedule the add_to_database operation to avoid blocking
-                            self.hass.async_add_executor_job(self.add_to_database, extracted_code)
+                        provider = self.identify_provider(body)
+                        if provider:
+                            extracted_code = self.extract_code(body, provider)
+                            if extracted_code:
+                                # Properly schedule the add_to_database operation to avoid blocking
+                                self.hass.async_add_executor_job(self.add_to_database, extracted_code)
             server.close()
             server.logout()
         except Exception as e:
             _LOGGER.error("Error in email fetching or processing: %s", str(e))
 
+    def identify_provider(self, email_body):
+        """Identify the provider based on the email content."""
+        providers = self._patterns.keys()
+        for provider in providers:
+            if provider.lower() in email_body.lower():
+                return provider
+        _LOGGER.warning("No provider found in the email content")
+        return None
 
+    def extract_code(self, body, provider):
+        """Extract the shipment code from the email body based on the provider's pattern."""
+        pattern = self._patterns.get(provider)
+        if pattern:
+            match = re.search(pattern, body)
+            if match:
+                _LOGGER.info(f"Found tracking code: {match.group()} for provider: {provider}")
+                return match.group()
+        _LOGGER.warning(f"No matching code found in the email body for provider: {provider}")
+        return None
 
     async def process_code(self, code):
         """Process the scanned code and update the system state."""
@@ -142,7 +162,6 @@ class ShipmentTrackerSensor(Entity):
             await self.publish_status("Unauthorized")
             _LOGGER.debug("Publishing Unauthorized to MQTT")
 
-
     def _get_email_body(self, msg):
         """Extract the body of the email."""
         if msg.is_multipart():
@@ -151,14 +170,6 @@ class ShipmentTrackerSensor(Entity):
                     return part.get_payload(decode=True).decode()
         else:
             return msg.get_payload(decode=True).decode()
-
-    def extract_code(self, body):
-        for pattern in PATTERNS.values():
-            if (match := re.search(pattern, body)):
-                _LOGGER.info(f"Found tracking code: {match.group()}")
-                return match.group()
-        return None
-
 
     def __run_db_task_blocking(self, code):
         """Function to run the DB task that potentially blocks, ensuring proper handling of database operations."""
@@ -192,7 +203,6 @@ class ShipmentTrackerSensor(Entity):
                 cursor.close()
             if conn is not None and conn.is_connected():
                 conn.close()
-
 
     async def is_code_in_database(self, code):
         """Check if the code exists in the database and is active asynchronously."""
@@ -228,7 +238,6 @@ class ShipmentTrackerSensor(Entity):
             if conn is not None and conn.is_connected():
                 conn.close()
 
-
     async def update_code_status(self, code, active):
         """Update the active status of a shipment code in the database asynchronously."""
         await self.hass.async_add_executor_job(self._update_code_status, code, active)
@@ -258,10 +267,6 @@ class ShipmentTrackerSensor(Entity):
             if conn is not None and conn.is_connected():
                 conn.close()
 
-
-
     async def publish_status(self, status):
         """Publish the status to the MQTT topic using Home Assistant's MQTT."""
         await async_publish(self.hass, self._mqtt_status_topic, status)
-
-
