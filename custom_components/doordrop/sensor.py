@@ -71,7 +71,7 @@ class ShipmentTrackerSensor(Entity):
             update_method=self._update,
             update_interval=timedelta(minutes=scan_interval)
         )
-        self._patterns = PATTERNS  # Ładowanie wzorców
+        self._patterns = PATTERNS
 
     async def async_added_to_hass(self):
         await self._coordinator.async_config_entry_first_refresh()
@@ -83,7 +83,7 @@ class ShipmentTrackerSensor(Entity):
         try:
             payload = message.payload.decode() if isinstance(message.payload, bytes) else message.payload
             _LOGGER.info("Received message on %s: %s", message.topic, payload)
-            await self.process_code(payload)  # Używamy 'await' tutaj
+            await self.process_code(payload)
         except Exception as e:
             _LOGGER.error("Error processing MQTT message: %s", str(e))
 
@@ -118,45 +118,20 @@ class ShipmentTrackerSensor(Entity):
                         if provider:
                             extracted_code = self.extract_code(body, provider)
                             if extracted_code:
-                                # Properly schedule the add_to_database operation to avoid blocking
                                 self.hass.async_add_executor_job(self.add_to_database, extracted_code)
             server.close()
             server.logout()
         except Exception as e:
             _LOGGER.error("Error in email fetching or processing: %s", str(e))
 
-    def identify_provider(self, email_body):
-        """Identify the provider based on the email content."""
-        providers = self._patterns.keys()
-        for provider in providers:
-            if provider.lower() in email_body.lower():
-                return provider
-        _LOGGER.warning("No provider found in the email content")
-        return None
-
-    def extract_code(self, body, provider):
-        """Extract the shipment code from the email body based on the provider's pattern."""
-        pattern = self._patterns.get(provider)
-        if pattern:
-            match = re.search(pattern, body)
-            if match:
-                _LOGGER.info(f"Found tracking code: {match.group()} for provider: {provider}")
-                return match.group()
-        _LOGGER.warning(f"No matching code found in the email body for provider: {provider}")
-        return None
-
     async def process_code(self, code):
         """Process the scanned code and update the system state."""
         _LOGGER.debug("Processing code %s", code)
         if await self.is_code_in_database(code):
             await self.update_code_status(code, active=False)
-
             _LOGGER.debug("Pressing button with entity_id: %s", self._button_entity_id)
-
             await self.hass.services.async_call('input_button', 'press', {'entity_id': "input_button." + self._button_entity_id})
-
             _LOGGER.debug("Publishing Authorized to MQTT")
-
             await self.publish_status("Authorized")
         else:
             await self.publish_status("Unauthorized")
@@ -170,6 +145,25 @@ class ShipmentTrackerSensor(Entity):
                     return part.get_payload(decode=True).decode()
         else:
             return msg.get_payload(decode=True).decode()
+
+    def identify_provider(self, email_body):
+        """Identify the provider based on the email content."""
+        providers = self._patterns.keys()
+        for provider in providers:
+            if provider.lower() in email_body.lower():
+                return provider
+        _LOGGER.warning("No provider found in the email content")
+        return None
+
+    def extract_code(self, body, provider):
+        pattern = self._patterns.get(provider)
+        if pattern:
+            if (match := re.search(pattern, body)):
+                _LOGGER.info(f"Found tracking code: {match.group()}")
+                return match.group()
+        else:
+            _LOGGER.warning("No pattern found for provider %s", provider)
+        return None
 
     def __run_db_task_blocking(self, code):
         """Function to run the DB task that potentially blocks, ensuring proper handling of database operations."""
@@ -224,7 +218,6 @@ class ShipmentTrackerSensor(Entity):
             _LOGGER.debug("Checking if code %s is in the database and active.", code)
             cursor.execute("SELECT active FROM shipments WHERE code = %s", (code,))
             result = cursor.fetchone()
-
             if result is None:
                 _LOGGER.info("Code %s not found in the database.", code)
                 return False
