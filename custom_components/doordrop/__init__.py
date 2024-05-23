@@ -1,9 +1,8 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.const import EVENT_HOMEASSISTANT_START
 from homeassistant.components.mqtt import async_subscribe
 import logging
-
+import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "doordrop"
@@ -17,7 +16,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         'config': dict(entry.data),
         'subscription': None
     }
-
 
     # Setup MQTT Subscription and check if it was successful
     if not await setup_mqtt_subscriptions(hass, entry):
@@ -34,9 +32,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 async def setup_mqtt_subscriptions(hass: HomeAssistant, entry: ConfigEntry):
     """Asynchronously set up MQTT subscriptions."""
     try:
-        hass.data[DOMAIN][entry.entry_id]['subscription'] = await async_subscribe(
+        subscription = await async_subscribe(
             hass, entry.data['mqtt_topic'], message_callback
         )
+        hass.data[DOMAIN][entry.entry_id]['subscription'] = subscription
         _LOGGER.info("MQTT subscription setup complete.")
         return True
     except Exception as e:
@@ -56,14 +55,21 @@ async def message_callback(msg):
     except Exception as e:
         _LOGGER.error(f"Error processing MQTT message: {str(e)}")
 
-
-
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
     if unload_ok:
         subscription = hass.data[DOMAIN][entry.entry_id].get('subscription')
         if subscription:
-            await subscription()
+            _LOGGER.debug(f"Unloading subscription for entry {entry.entry_id}")
+            try:
+                if asyncio.iscoroutine(subscription):
+                    await subscription()
+                else:
+                    _LOGGER.warning(f"Subscription is not awaitable for entry {entry.entry_id}")
+            except Exception as e:
+                _LOGGER.error(f"Error while unloading subscription: {str(e)}")
+        else:
+            _LOGGER.warning(f"No subscription found for entry {entry.entry_id}")
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
