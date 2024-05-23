@@ -9,13 +9,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.components.mqtt import async_publish, async_subscribe
-
 from .const import (
     CONF_IMAP_HOST, CONF_IMAP_PORT, CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD,
     CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME,
     CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, CONF_BTN_ENTITY_ID
 )
 from .patterns import PATTERNS
+from .search_patterns import find_tracking_code
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +47,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
 
     return True
 
-
 class ShipmentTrackerSensor(Entity):
     def __init__(self, hass, imap_username, imap_password, imap_host, imap_port, db_host, db_port, db_username, db_password, db_name, scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id):
         self.hass = hass
@@ -68,7 +67,7 @@ class ShipmentTrackerSensor(Entity):
             hass,
             _LOGGER,
             name="doordrop",
-            update_method=self._update,
+            update_method=self._async_update,
             update_interval=timedelta(minutes=scan_interval)
         )
         self._patterns = PATTERNS
@@ -93,7 +92,7 @@ class ShipmentTrackerSensor(Entity):
         except Exception as e:
             _LOGGER.error("Database operation failed: %s", str(e))
 
-    async def _update(self):
+    async def _async_update(self):
         """A wrapper to run the synchronous update method in the executor."""
         await self.hass.async_add_executor_job(self.update)
 
@@ -115,11 +114,14 @@ class ShipmentTrackerSensor(Entity):
                         msg = email.message_from_bytes(response_part[1])
                         body = self._get_email_body(msg)
                         if body:  # Ensure body is not None
-                            provider = self.identify_provider(body)
-                            if provider:
-                                extracted_code = self.extract_code(body, provider)
+                            providers = self.identify_providers(body)
+                            extracted_code = None
+                            for provider in providers:
+                                extracted_code = find_tracking_code(provider, body, self._patterns)
                                 if extracted_code:
-                                    self.hass.async_add_executor_job(self.add_to_database, extracted_code)
+                                    break
+                            if extracted_code:
+                                asyncio.run_coroutine_threadsafe(self._run_db_task(extracted_code), self.hass.loop)
             server.close()
             server.logout()
         except Exception as e:
@@ -150,24 +152,12 @@ class ShipmentTrackerSensor(Entity):
             return payload.decode() if payload else None
         return None
 
-    def identify_provider(self, email_body):
-        """Identify the provider based on the email content."""
-        providers = self._patterns.keys()
-        for provider in providers:
-            if provider.lower() in email_body.lower():
-                return provider
-        _LOGGER.warning("No provider found in the email content")
-        return None
-
-    def extract_code(self, body, provider):
-        pattern = self._patterns.get(provider)
-        if pattern:
-            if (match := re.search(pattern, body)):
-                _LOGGER.info(f"Found tracking code: {match.group()}")
-                return match.group()
-        else:
-            _LOGGER.warning("No pattern found for provider %s", provider)
-        return None
+    def identify_providers(self, email_body):
+        """Identify the providers based on the email content."""
+        providers = [provider for provider in self._patterns.keys() if provider.lower() in email_body.lower()]
+        if not providers:
+            _LOGGER.warning("No providers found in the email content")
+        return providers
 
     def __run_db_task_blocking(self, code):
         """Function to run the DB task that potentially blocks, ensuring proper handling of database operations."""
