@@ -10,8 +10,8 @@ PATTERNS = {
     ],
     'Pocztex': r'PX\d{10}',
     'Poczta Polska': [  # Wzorzec dla Poczty Polskiej
-        r'\d{20}'',  # Wzorzec dla DHL z numerem o stałej długości 21
-        r'PX\d{10}
+        r'\d{20}',  # Wzorzec dla DHL z numerem o stałej długości 21
+        r'PX\d{10}'
     ],    
     'Generic13Digit': r'\d{13}',
     'Generic12Digit': r'\d{12}'
