@@ -9,7 +9,10 @@ PATTERNS = {
         r'000\d{21}'   # Inny alternatywny wzorzec dla DHL
     ],
     'Pocztex': r'PX\d{10}',
-    'Poczta Polska': r'\d{20}',  # Wzorzec dla Poczty Polskiej
+    'Poczta Polska': [  # Wzorzec dla Poczty Polskiej
+        r'\d{20}'',  # Wzorzec dla DHL z numerem o stałej długości 21
+        r'PX\d{10}
+    ],    
     'Generic13Digit': r'\d{13}',
     'Generic12Digit': r'\d{12}'
 }
