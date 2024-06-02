@@ -15,11 +15,8 @@
                     "scan_interval": "Scan Interval (minutes)",
                     "mqtt_topic": "MQTT Topic for Delivery Codes",
                     "mqtt_status_topic": "MQTT Topic for Status Messages",
-                    "mqtt_username": "MQTT Username",
-                    "mqtt_password": "MQTT Password",
-                    "mqtt_host": "MQTT Broker Host",
-                    "mqtt_port": "MQTT Broker Port",
-                    "button_entity_id": "Name of the helper button"
+                    "btn_entity_id": "Name of the helper button",
+                    "authorized_barcodes": "Comma separated list of authorized barcodes"
                 },
                 "title": "Configure DoorDrop"
             }

@@ -1,6 +1,7 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components.mqtt import async_subscribe
+from .const import CONF_AUTHORIZED_BARCODES
 import logging
 import asyncio
 
@@ -73,3 +74,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
             _LOGGER.warning(f"No subscription found for entry {entry.entry_id}")
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
+
+def is_authorized_barcode(barcode, authorized_barcodes):
+    return barcode in authorized_barcodes.split(",")

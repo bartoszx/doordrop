@@ -12,7 +12,8 @@ from homeassistant.components.mqtt import async_publish, async_subscribe
 from .const import (
     CONF_IMAP_HOST, CONF_IMAP_PORT, CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD,
     CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME,
-    CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, CONF_BTN_ENTITY_ID
+    CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, CONF_BTN_ENTITY_ID,
+    CONF_AUTHORIZED_BARCODES
 )
 from .patterns import PATTERNS
 from .search_patterns import find_tracking_code
@@ -36,11 +37,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     mqtt_topic = config[CONF_MQTT_TOPIC]
     mqtt_status_topic = config[CONF_MQTT_STATUS_TOPIC]
     button_entity_id = config[CONF_BTN_ENTITY_ID]
+    authorized_barcodes = config.get(CONF_AUTHORIZED_BARCODES, "")
 
     sensor = ShipmentTrackerSensor(
         hass, imap_username, imap_password, imap_host, imap_port,
         db_host, db_port, db_username, db_password, db_name,
-        scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id
+        scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id,
+        authorized_barcodes
     )
 
     async_add_entities([sensor])
@@ -48,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     return True
 
 class ShipmentTrackerSensor(Entity):
-    def __init__(self, hass, imap_username, imap_password, imap_host, imap_port, db_host, db_port, db_username, db_password, db_name, scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id):
+    def __init__(self, hass, imap_username, imap_password, imap_host, imap_port, db_host, db_port, db_username, db_password, db_name, scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id, authorized_barcodes):
         self.hass = hass
         self._state = None
         self._imap_host = imap_host
@@ -63,6 +66,7 @@ class ShipmentTrackerSensor(Entity):
         self._button_entity_id = button_entity_id
         self._mqtt_topic = mqtt_topic
         self._mqtt_status_topic = mqtt_status_topic
+        self._authorized_barcodes = authorized_barcodes
         self._coordinator = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -134,7 +138,7 @@ class ShipmentTrackerSensor(Entity):
     async def process_code(self, code):
         """Process the scanned code and update the system state."""
         _LOGGER.debug("Processing code %s", code)
-        if await self.is_code_in_database(code):
+        if self.is_authorized_barcode(code):
             await self.update_code_status(code, active=False)
             _LOGGER.debug("Pressing button with entity_id: %s", self._button_entity_id)
             await self.hass.services.async_call('input_button', 'press', {'entity_id': "input_button." + self._button_entity_id})
@@ -143,6 +147,10 @@ class ShipmentTrackerSensor(Entity):
         else:
             await self.publish_status("Unauthorized")
             _LOGGER.debug("Publishing Unauthorized to MQTT")
+
+    def is_authorized_barcode(self, barcode):
+        """Check if the barcode is in the list of authorized barcodes."""
+        return barcode in self._authorized_barcodes.split(",")
 
     def _get_email_body(self, msg):
         """Extract the body of the email."""

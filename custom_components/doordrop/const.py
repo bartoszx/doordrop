@@ -12,4 +12,5 @@ CONF_DB_NAME = "db_name"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_MQTT_TOPIC = "mqtt_topic"
 CONF_MQTT_STATUS_TOPIC = "mqtt_status_topic"
-CONF_BTN_ENTITY_ID = 'button_entity_id'
+CONF_BTN_ENTITY_ID = "btn_entity_id"
+CONF_AUTHORIZED_BARCODES = "authorized_barcodes"
