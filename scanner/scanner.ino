@@ -6,8 +6,9 @@
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <ArduinoOTA.h>
-#include <Adafruit_NeoPixel.h>
 #include "mqtt.h"
+#include "secrets.h"
+#include "led_control.h"
 
 // Pin definitions
 #define BARCODE_POWER_PIN D8
@@ -19,8 +20,6 @@
 #define LCD_SDA D1
 #define BARCODE_TX D3
 #define BARCODE_RX D4
-#define LED_PIN D5 // Pin for WS2812B
-#define NUM_LEDS 5 // Number of LEDs in the strip
 
 // Timing definitions
 #define MOTION_DELAY_MS 5000 // 5 seconds
@@ -29,12 +28,17 @@
 // LCD message
 #define WELCOME_LCD_MSG "Zeskanuj kod paczki"
 
+// MQTT Topics
+#define STATUS_TOPIC "doordrop/status"
+
 // Global variables
 SoftwareSerial barcodeScanner(BARCODE_TX, BARCODE_RX);
 LiquidCrystal_I2C lcd(LCD_ADDRESS, LCD_COLUMNS, LCD_ROWS);
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 extern AsyncWebServer server; // Declare server as external
 extern bool mqttConnected; // Declare mqttConnected as external
+
+extern bool authorized; // Declare as external
+extern bool unauthorized; // Declare as external
 
 unsigned long lastMotionTime = 0;
 bool motionDetected = false;
@@ -213,7 +217,7 @@ void connectToWiFi() {
 
         setupServer(); // Start the server on the target network
 
-        mqttInit(mqttHost.c_str(), mqttPort, mqttUser.c_str(), mqttPassword.c_str(), mqttTopic.c_str());
+        mqttInit(mqttHost.c_str(), mqttPort, mqttUser.c_str(), mqttPassword.c_str(), mqttTopic.c_str(), mqttStatusTopic.c_str());
         mqttConnected = mqttConnect();
         if (!mqttConnected) {
             Serial.println("Failed to connect to MQTT");
@@ -281,20 +285,13 @@ void setup() {
     pinMode(MOTION_SENSOR_PIN, INPUT);
 
     // Initialize LED strip
-    strip.begin();
-    strip.show(); // Initialize all pixels to 'off'
-
-    // Turn on LED to white (full brightness for R, G, and B)
-    for (int i = 0; i < NUM_LEDS; i++) {
-        strip.setPixelColor(i, strip.Color(255, 255, 255));
-    }
-    strip.show();
+    initLED();
 
     Wire.begin(LCD_SCL, LCD_SDA);
     lcd.init();
     lcd.backlight();
     lcd.setCursor(0, 0);
-    lcd.print("Scan code");
+    lcd.print("Connecting...");
 
     connectToWiFi();
     setupOTA();
@@ -336,16 +333,50 @@ void loop() {
                 lcd.setCursor(0, 0);
                 lcd.print("Kod: ");
                 lcd.print(receivedString);
+
+                // Reset the authorization status flags
+                authorized = false;
+                unauthorized = false;
+                Serial.println("Reset authorized and unauthorized flags");
+
+                // Publish the scanned barcode to MQTT
                 if (mqttConnected) {
-                    publishToMQTT(receivedString.c_str()); // Publish scanned code to MQTT
-                } else {
-                    Serial.println("MQTT not connected, cannot publish message.");
+                    publishToMQTT(receivedString.c_str());
                 }
-                delay(5000); // Display code for 5 seconds
+
+                // Wait for the authorization result
+                unsigned long startWaitTime = millis();
+                while ((millis() - startWaitTime < 5000) && !authorized && !unauthorized) {
+                    mqttLoop();
+                    delay(100);
+                }
+
+                // Check the authorization status and update the LED accordingly
+                if (authorized) {
+                    setLEDColor("green");
+                    Serial.println("LED color set to green");
+                } else if (unauthorized) {
+                    setLEDColor("red");
+                    Serial.println("LED color set to red");
+                } else {
+                    setLEDColor("white"); // No status received, default to white
+                    Serial.println("LED color set to white");
+                }
+
+                delay(5000); // Display code and LED color for 5 seconds
+
+                // Reset LED color to white after 5 seconds
+                setLEDColor("white");
+                Serial.println("LED color reset to white");
+
                 lcd.setCursor(0, 1); // Set cursor in the second row
                 lcd.print(WELCOME_LCD_MSG); // Restore message after displaying code
             }
         }
+
+
+
+
     }
     ArduinoOTA.handle();
     delay(100); // Reduced delay to respond faster to motion
