@@ -3,7 +3,7 @@ import imaplib
 import email
 import re
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
@@ -76,6 +76,10 @@ class ShipmentTrackerSensor(Entity):
         await self._coordinator.async_config_entry_first_refresh()
         self._subscription = await async_subscribe(self.hass, self._mqtt_topic, self.on_message)
         _LOGGER.debug("Subscribed to MQTT topic: %s", self._mqtt_topic)
+
+    async def async_will_remove_from_hass(self):
+        if self._subscription is not None:
+            await self._subscription()
 
     async def on_message(self, message):
         """Handle incoming MQTT messages."""
@@ -242,7 +246,7 @@ class ShipmentTrackerSensor(Entity):
                 database=self._db_name
             )
             cursor = conn.cursor()
-            cursor.execute("UPDATE shipments SET active = %s WHERE code = %s", (active, code))
+            cursor.execute("UPDATE shipments SET active = %s, checked_date = %s WHERE code = %s", (active, datetime.now(), code))
             conn.commit()
         except Exception as e:
             _LOGGER.error("Error updating code status in the database: %s", str(e))

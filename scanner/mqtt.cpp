@@ -1,40 +1,55 @@
 #include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <PubSubClient.h>
 #include "mqtt.h"
-#include "secrets.h" // Twój plik z danymi do WiFi i MQTT
-#include <ArduinoJson.h>
+
+const char* mqttServer;
+int mqttPort;
+const char* mqttUser;
+const char* mqttPassword;
+String mqttTopic;
 
 WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+PubSubClient client(espClient);
 
-void setupMQTT() {
-    mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+AsyncWebServer server(80); // Define server here
+bool mqttConnected = false;
+
+void mqttInit(const char* server, int port, const char* user, const char* password, const char* topic) {
+    mqttServer = server;
+    mqttPort = port;
+    mqttUser = user;
+    mqttPassword = password;
+    mqttTopic = String(topic);
+    client.setServer(mqttServer, mqttPort);
+    Serial.println("MQTT initialized");
 }
 
-void connectToMQTT() {
-    while (!mqttClient.connected()) {
-        Serial.print("Connecting to MQTT...");
-        String clientId = "ESP8266Client-" + String(ESP.getChipId());
-        if (mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD)) {
-            Serial.println("connected");
-        } else {
-            Serial.print("failed, rc=");
-            Serial.print(mqttClient.state());
-            Serial.println(" try again in 5 seconds");
-            delay(5000);
-        }
-    }
-}
-
-void publishToMQTT(const char* message) {
-    if (mqttClient.connected()) {
-        mqttClient.publish(MQTT_TOPIC, message);
-        Serial.println("Published to MQTT: " + String(message));
+bool mqttConnect() {
+    Serial.println("Connecting to MQTT...");
+    if (client.connect("ESP8266Client", mqttUser, mqttPassword)) {
+        Serial.println("MQTT connected");
+        return true;
     } else {
-        Serial.println("Not connected to MQTT server");
+        Serial.print("MQTT connect failed, rc=");
+        Serial.println(client.state());
+        return false;
     }
 }
 
 void mqttLoop() {
-    mqttClient.loop();
+    client.loop();
+}
+
+void publishToMQTT(const char* message) {
+    Serial.print("Publishing to MQTT topic ");
+    Serial.print(mqttTopic);
+    Serial.print(": ");
+    Serial.println(message);
+    if (client.publish(mqttTopic.c_str(), message)) {
+        Serial.println("Publish successful");
+    } else {
+        Serial.println("Publish failed");
+    }
 }

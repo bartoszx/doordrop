@@ -1,13 +1,14 @@
 #ifndef MQTT_H
 #define MQTT_H
 
-#include <PubSubClient.h>
+#include <ESPAsyncWebServer.h>
 
-extern PubSubClient mqttClient;
+extern bool mqttConnected;
+extern AsyncWebServer server; // Declare server as external
 
-void setupMQTT();
-void connectToMQTT();
-void publishToMQTT(const char* message);
+void mqttInit(const char* server, int port, const char* user, const char* password, const char* topic);
+bool mqttConnect();
 void mqttLoop();
+void publishToMQTT(const char* message);
 
 #endif
