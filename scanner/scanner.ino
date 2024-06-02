@@ -26,7 +26,7 @@
 #define SCAN_DURATION_MS 10000 // 10 seconds
 
 // LCD message
-#define WELCOME_LCD_MSG "Zeskanuj kod paczki"
+#define WELCOME_LCD_MSG "Skanuj kod paczki"
 
 // MQTT Topics
 #define STATUS_TOPIC "doordrop/status"
@@ -246,6 +246,11 @@ void reconnectWiFiAndMQTT() {
 }
 
 void setupOTA() {
+    // Ustaw hasło OTA, jeśli chcesz je zabezpieczyć
+    const char* otaPassword = "123456"; // Zmień na swoje hasło, jeśli chcesz zabezpieczenia
+
+    ArduinoOTA.setPassword(otaPassword);
+
     ArduinoOTA.onStart([]() {
         String type;
         if (ArduinoOTA.getCommand() == U_FLASH) {
@@ -277,6 +282,7 @@ void setupOTA() {
     });
     ArduinoOTA.begin();
 }
+
 
 void setup() {
     Serial.begin(9600);
@@ -369,14 +375,13 @@ void loop() {
                 setLEDColor("white");
                 Serial.println("LED color reset to white");
 
-                lcd.setCursor(0, 1); // Set cursor in the second row
-                lcd.print(WELCOME_LCD_MSG); // Restore message after displaying code
+                // Clear the LCD and restore the welcome message
+                lcd.clear();
+                lcd.setCursor(0, 0); // Set cursor in the first row
+                lcd.print(WELCOME_LCD_MSG);
+                Serial.println("Restored welcome message on LCD");
             }
         }
-
-
-
-
     }
     ArduinoOTA.handle();
     delay(100); // Reduced delay to respond faster to motion
