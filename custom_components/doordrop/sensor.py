@@ -12,8 +12,7 @@ from homeassistant.components.mqtt import async_publish, async_subscribe
 from .const import (
     CONF_IMAP_HOST, CONF_IMAP_PORT, CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD,
     CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME,
-    CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, CONF_BTN_ENTITY_ID,
-    CONF_AUTHORIZED_BARCODES
+    CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, AUTHORIZED_BARCODES
 )
 from .patterns import PATTERNS
 from .search_patterns import find_tracking_code
@@ -36,22 +35,41 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entitie
     scan_interval = config[CONF_SCAN_INTERVAL]
     mqtt_topic = config[CONF_MQTT_TOPIC]
     mqtt_status_topic = config[CONF_MQTT_STATUS_TOPIC]
-    button_entity_id = config[CONF_BTN_ENTITY_ID]
-    authorized_barcodes = config.get(CONF_AUTHORIZED_BARCODES, "")
+    authorized_barcodes = config.get(AUTHORIZED_BARCODES, "")
+
+    auth_status_sensor = AuthorizationStatusSensor(hass)
 
     sensor = ShipmentTrackerSensor(
         hass, imap_username, imap_password, imap_host, imap_port,
         db_host, db_port, db_username, db_password, db_name,
-        scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id,
-        authorized_barcodes
+        scan_interval, mqtt_topic, mqtt_status_topic, authorized_barcodes, auth_status_sensor
     )
 
-    async_add_entities([sensor])
+    async_add_entities([sensor, auth_status_sensor], True)
 
     return True
 
+class AuthorizationStatusSensor(Entity):
+    """Representation of the authorization status sensor."""
+
+    def __init__(self, hass):
+        self.hass = hass
+        self._state = None
+
+    @property
+    def name(self):
+        return "Authorization Status"
+
+    @property
+    def state(self):
+        return self._state
+
+    def update_status(self, status):
+        self._state = status
+        self.async_write_ha_state()
+
 class ShipmentTrackerSensor(Entity):
-    def __init__(self, hass, imap_username, imap_password, imap_host, imap_port, db_host, db_port, db_username, db_password, db_name, scan_interval, mqtt_topic, mqtt_status_topic, button_entity_id, authorized_barcodes):
+    def __init__(self, hass, imap_username, imap_password, imap_host, imap_port, db_host, db_port, db_username, db_password, db_name, scan_interval, mqtt_topic, mqtt_status_topic, authorized_barcodes, auth_status_sensor):
         self.hass = hass
         self._state = None
         self._imap_host = imap_host
@@ -63,10 +81,10 @@ class ShipmentTrackerSensor(Entity):
         self._db_username = db_username
         self._db_password = db_password
         self._db_name = db_name
-        self._button_entity_id = button_entity_id
         self._mqtt_topic = mqtt_topic
         self._mqtt_status_topic = mqtt_status_topic
         self._authorized_barcodes = authorized_barcodes
+        self._auth_status_sensor = auth_status_sensor
         self._coordinator = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -139,14 +157,13 @@ class ShipmentTrackerSensor(Entity):
         """Process the scanned code and update the system state."""
         _LOGGER.debug("Processing code %s", code)
         if self.is_authorized_barcode(code):
-            await self.update_code_status(code, active=False)
-            _LOGGER.debug("Pressing button with entity_id: %s", self._button_entity_id)
-            await self.hass.services.async_call('input_button', 'press', {'entity_id': "input_button." + self._button_entity_id})
+            self._auth_status_sensor.update_status("authorized")
             _LOGGER.debug("Publishing Authorized to MQTT")
             await self.publish_status("Authorized")
         else:
-            await self.publish_status("Unauthorized")
+            self._auth_status_sensor.update_status("unauthorized")
             _LOGGER.debug("Publishing Unauthorized to MQTT")
+            await self.publish_status("Unauthorized")
 
     def is_authorized_barcode(self, barcode):
         """Check if the barcode is in the list of authorized barcodes."""

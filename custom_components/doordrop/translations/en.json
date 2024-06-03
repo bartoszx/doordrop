@@ -15,7 +15,6 @@
                     "scan_interval": "Scan Interval (minutes)",
                     "mqtt_topic": "MQTT Topic for Delivery Codes",
                     "mqtt_status_topic": "MQTT Topic for Status Messages",
-                    "btn_entity_id": "Name of the helper button",
                     "authorized_barcodes": "Comma separated list of authorized barcodes"
                 },
                 "title": "Configure DoorDrop"

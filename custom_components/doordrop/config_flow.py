@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 import logging
 import imaplib
 import mysql.connector
-from .const import DOMAIN, CONF_IMAP_HOST, CONF_IMAP_PORT, CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD, CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME, CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, CONF_BTN_ENTITY_ID, CONF_AUTHORIZED_BARCODES
+from .const import DOMAIN, CONF_IMAP_HOST, CONF_IMAP_PORT, CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD, CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME, CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, AUTHORIZED_BARCODES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +17,6 @@ DEFAULT_DB_USERNAME = "tracker"
 DEFAULT_DB_NAME = "tracker"
 DEFAULT_MQTT_TOPIC = "doordrop/kod"
 DEFAULT_MQTT_STATUS_TOPIC = "doordrop/status"
-DEFAULT_CONF_BTN_ENTITY_ID = "gatebtn"
 
 DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_IMAP_HOST): str,
@@ -32,8 +31,7 @@ DATA_SCHEMA = vol.Schema({
     vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(vol.Coerce(int), vol.Range(min=1)),
     vol.Required(CONF_MQTT_TOPIC, default=DEFAULT_MQTT_TOPIC): str,
     vol.Required(CONF_MQTT_STATUS_TOPIC, default=DEFAULT_MQTT_STATUS_TOPIC): str,
-    vol.Required(CONF_BTN_ENTITY_ID, default=DEFAULT_CONF_BTN_ENTITY_ID): str,
-    vol.Optional(CONF_AUTHORIZED_BARCODES, default=""): str,  # Nowa opcja konfiguracji
+    vol.Optional(AUTHORIZED_BARCODES, default=""): str,  # Nowa opcja konfiguracji
 })
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
