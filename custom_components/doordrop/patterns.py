@@ -17,6 +17,9 @@ PATTERNS = {
         r'\d{20}',  # Wzorzec dla DHL z numerem o stałej długości 21
         r'PX\d{10}'
     ],    
+    'Fedex': [  # Wzorzec Fedex 
+        r'\d{13}'
+    ],         
     'Generic13Digit': r'\d{13}', # Ogólny wzorzec dla 13-cyfrowych numerów
     'Generic12Digit': r'\d{12}'  # Ogólny wzorzec dla 12-cyfrowych numerów
 }
