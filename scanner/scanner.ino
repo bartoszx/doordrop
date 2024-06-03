@@ -26,7 +26,7 @@
 #define SCAN_DURATION_MS 10000 // 10 seconds
 
 // LCD message
-#define WELCOME_LCD_MSG "Skanuj kod paczki"
+#define WELCOME_LCD_MSG "Zeskanuj paczke"
 
 // MQTT Topics
 #define STATUS_TOPIC "doordrop/status"
