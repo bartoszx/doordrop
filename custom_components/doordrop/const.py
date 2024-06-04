@@ -12,5 +12,4 @@ CONF_DB_NAME = "db_name"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_MQTT_TOPIC = "mqtt_topic"
 CONF_MQTT_STATUS_TOPIC = "mqtt_status_topic"
-
 AUTHORIZED_BARCODES = "authorized_barcodes"

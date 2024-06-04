@@ -1,7 +1,7 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components.mqtt import async_subscribe
-from .const import CONF_AUTHORIZED_BARCODES
+from .const import AUTHORIZED_BARCODES
 import logging
 import asyncio
 
