@@ -118,10 +118,12 @@ class ShipmentTrackerSensor(Entity):
             self.update_status("authorized")
             _LOGGER.debug("Publishing Authorized to MQTT")
             await self.publish_status("Authorized")
+            self.update_status("none")
         else:
             self.update_status("unauthorized")
             _LOGGER.debug("Publishing Unauthorized to MQTT")
             await self.publish_status("Unauthorized")
+            self.update_status("none")
 
     async def _async_update(self):
         """A wrapper to run the synchronous update method in the executor."""
