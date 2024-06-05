@@ -9,6 +9,7 @@
 #include "mqtt.h"
 #include "secrets.h"
 #include "led_control.h"
+#include <deque>
 
 // Pin definitions
 #define BARCODE_POWER_PIN D8
@@ -40,6 +41,9 @@ extern bool mqttConnected; // Declare mqttConnected as external
 extern bool authorized; // Declare as external
 extern bool unauthorized; // Declare as external
 
+std::deque<String> errorLogs;
+const size_t maxErrorLogs = 50; // Maximum number of error logs to store
+
 unsigned long lastMotionTime = 0;
 bool motionDetected = false;
 bool scanning = false;
@@ -48,11 +52,22 @@ void startAP();
 void handleRoot(AsyncWebServerRequest *request);
 void handleSave(AsyncWebServerRequest *request);
 void handleReset(AsyncWebServerRequest *request);
+void handleLogs(AsyncWebServerRequest *request);
+void handleStatus(AsyncWebServerRequest *request);
 void setupServer();
 void connectToWiFi();
 void reconnectWiFiAndMQTT();
 void setupOTA();
 bool isAlphaNumericStr(String str);
+void logError(const String &error);
+
+void logError(const String &error) {
+    if (errorLogs.size() >= maxErrorLogs) {
+        errorLogs.pop_front(); // Remove oldest log if max size is reached
+    }
+    errorLogs.push_back(error);
+    Serial.println(error); // Also print to Serial for debugging
+}
 
 void startAP() {
     uint8_t mac[6];
@@ -67,6 +82,7 @@ void startAP() {
     Serial.println(apName);
     Serial.print("IP Address: ");
     Serial.println(WiFi.softAPIP());
+    logError("Started AP: " + apName + " with IP: " + WiFi.softAPIP().toString());
 }
 
 void handleRoot(AsyncWebServerRequest *request) {
@@ -77,7 +93,7 @@ void handleSave(AsyncWebServerRequest *request) {
     Serial.println("handleSave called");
 
     if (!LittleFS.begin()) {
-        Serial.println("Failed to mount file system");
+        logError("Failed to mount file system");
         request->send(500, "text/plain", "Failed to mount file system.");
         return;
     }
@@ -123,16 +139,17 @@ void handleSave(AsyncWebServerRequest *request) {
             file.println(mqttStatusTopic);
             file.close();
             Serial.println("Configuration saved");
+            logError("Configuration saved");
 
             Serial.println("Rebooting...");
             delay(1000);
             ESP.restart();
         } else {
-            Serial.println("Failed to open file for writing");
+            logError("Failed to open file for writing");
             request->send(500, "text/plain", "Failed to open file for writing.");
         }
     } else {
-        Serial.println("Missing parameters");
+        logError("Missing parameters");
         request->send(400, "text/plain", "Missing parameters.");
     }
 }
@@ -143,8 +160,10 @@ void handleReset(AsyncWebServerRequest *request) {
     if (LittleFS.exists("/config.txt")) {
         LittleFS.remove("/config.txt");
         Serial.println("Configuration file deleted");
+        logError("Configuration file deleted");
     } else {
         Serial.println("Configuration file not found");
+        logError("Configuration file not found");
     }
 
     request->send(200, "text/plain", "Configuration reset. Rebooting...");
@@ -152,27 +171,51 @@ void handleReset(AsyncWebServerRequest *request) {
     ESP.restart();
 }
 
+void handleLogs(AsyncWebServerRequest *request) {
+    String logPage = "<html><body><h1>Error Logs</h1><pre>";
+    for (const String &log : errorLogs) {
+        logPage += log + "\n";
+    }
+    logPage += "</pre></body></html>";
+    request->send(200, "text/html", logPage);
+}
+
+void handleStatus(AsyncWebServerRequest *request) {
+    String statusPage = "<html><body><h1>System Status</h1><pre>";
+    statusPage += "WiFi SSID: " + String(WiFi.SSID()) + "\n";
+    statusPage += "WiFi Status: " + String(WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected") + "\n";
+    statusPage += "MQTT Status: " + String(mqttConnected ? "Connected" : "Disconnected") + "\n";
+    statusPage += "IP Address: " + WiFi.localIP().toString() + "\n";
+    statusPage += "</pre></body></html>";
+    request->send(200, "text/html", statusPage);
+}
+
 void setupServer() {
     if (!LittleFS.begin()) {
         Serial.println("Failed to mount file system");
+        logError("Failed to mount file system");
         return;
     }
 
     server.on("/", HTTP_GET, handleRoot);
     server.on("/save", HTTP_POST, handleSave);
     server.on("/reset", HTTP_GET, handleReset);
+    server.on("/logs", HTTP_GET, handleLogs); // Add this line
+    server.on("/status", HTTP_GET, handleStatus); // Add this line
     server.begin();
 }
 
 void connectToWiFi() {
     if (!LittleFS.begin()) {
         Serial.println("Failed to mount file system");
+        logError("Failed to mount file system");
         return;
     }
 
     File file = LittleFS.open("/config.txt", "r");
     if (!file) {
         Serial.println("No configuration found, starting AP...");
+        logError("No configuration found, starting AP...");
         startAP();
         setupServer();
         return;
@@ -201,11 +244,14 @@ void connectToWiFi() {
 
     Serial.print("Connecting to ");
     Serial.println(ssid);
+
+    WiFi.persistent(true);
+    WiFi.setAutoReconnect(true);
     WiFi.begin(ssid.c_str(), password.c_str());
 
     unsigned long startAttemptTime = millis();
 
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 20000) { // Increase to 20 seconds
         delay(1000);
         Serial.print(".");
     }
@@ -214,17 +260,20 @@ void connectToWiFi() {
         Serial.println("\nConnected to WiFi");
         Serial.print("IP Address: ");
         Serial.println(WiFi.localIP());
+        logError("Connected to WiFi with IP: " + WiFi.localIP().toString());
 
         setupServer(); // Start the server on the target network
 
         mqttInit(mqttHost.c_str(), mqttPort, mqttUser.c_str(), mqttPassword.c_str(), mqttTopic.c_str(), mqttStatusTopic.c_str());
         mqttConnected = mqttConnect();
         if (!mqttConnected) {
-            Serial.println("Failed to connect to MQTT");
+            logError("Failed to connect to MQTT");
             reconnectWiFiAndMQTT();
+        } else {
+            logError("Connected to MQTT");
         }
     } else {
-        Serial.println("\nFailed to connect to WiFi, starting AP...");
+        logError("Failed to connect to WiFi, starting AP...");
         startAP();
         setupServer();
     }
@@ -234,15 +283,18 @@ void reconnectWiFiAndMQTT() {
     while (WiFi.status() != WL_CONNECTED || !mqttConnected) {
         if (WiFi.status() != WL_CONNECTED) {
             Serial.println("Reconnecting to WiFi...");
+            logError("Reconnecting to WiFi...");
             WiFi.reconnect();
         }
         if (!mqttConnected) {
             Serial.println("Reconnecting to MQTT...");
+            logError("Reconnecting to MQTT...");
             mqttConnected = mqttConnect();
         }
         delay(5000); // Wait before retrying
     }
     Serial.println("Reconnected to WiFi and MQTT");
+    logError("Reconnected to WiFi and MQTT");
 }
 
 void setupOTA() {
@@ -269,20 +321,19 @@ void setupOTA() {
     ArduinoOTA.onError([](ota_error_t error) {
         Serial.printf("Error[%u]: ", error);
         if (error == OTA_AUTH_ERROR) {
-            Serial.println("Auth Failed");
+            logError("Auth Failed");
         } else if (error == OTA_BEGIN_ERROR) {
-            Serial.println("Begin Failed");
+            logError("Begin Failed");
         } else if (error == OTA_CONNECT_ERROR) {
-            Serial.println("Connect Failed");
+            logError("Connect Failed");
         } else if (error == OTA_RECEIVE_ERROR) {
-            Serial.println("Receive Failed");
+            logError("Receive Failed");
         } else if (error == OTA_END_ERROR) {
-            Serial.println("End Failed");
+            logError("End Failed");
         }
     });
     ArduinoOTA.begin();
 }
-
 
 void setup() {
     Serial.begin(9600);
