@@ -14,7 +14,7 @@ from .const import (
     CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME,
     CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, AUTHORIZED_BARCODES
 )
-from .patterns import PATTERNS
+from .patterns import PATTERNS, CUSTOM_PATTERNS
 from .search_patterns import find_tracking_code
 
 _LOGGER = logging.getLogger(__name__)
@@ -178,9 +178,22 @@ class ShipmentTrackerSensor(Entity):
     def identify_providers(self, subject, body):
         """Identify providers based on the subject and body content."""
         providers = []
-        for provider in self._patterns.keys():
-            if provider.lower() in subject.lower() or provider.lower() in body.lower():
-                providers.append(provider)
+
+        _LOGGER.debug("Subject: %s", subject)
+        _LOGGER.debug("Body: %s", body)
+
+        for provider, patterns in CUSTOM_PATTERNS.items():
+            for pattern in patterns:
+                subject_match = re.search(pattern, subject, re.IGNORECASE)
+                body_match = re.search(pattern, body, re.IGNORECASE)
+                _LOGGER.debug("Testing pattern '%s' for provider '%s'", pattern, provider)
+                if subject_match or body_match:
+                    _LOGGER.debug("Match found for provider '%s' with pattern '%s'", provider, pattern)
+                    providers.append(provider)
+                    break
+                else:
+                    _LOGGER.debug("No match for provider '%s' with pattern '%s'", provider, pattern)
+
         return providers
 
     def is_authorized_barcode(self, barcode):
