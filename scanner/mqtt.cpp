@@ -31,14 +31,6 @@ extern std::deque<String> errorLogs; // Declare as extern
 extern const size_t maxErrorLogs; // Declare as extern
 extern void logError(const String &error); // Declare as extern
 
-void logError(const String &error) {
-    if (errorLogs.size() >= maxErrorLogs) {
-        errorLogs.pop_front(); // Remove oldest log if max size is reached
-    }
-    errorLogs.push_back(error);
-    Serial.println(error); // Also print to Serial for debugging
-}
-
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
     Serial.print("Message arrived [");
     Serial.print(topic);
@@ -125,12 +117,14 @@ void publishToMQTT(const char* message) {
 
 void publishStatus() {
     // Initialize the time library
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+    tzset();
+
 
     time_t now = time(nullptr);
     struct tm timeinfo;
-    gmtime_r(&now, &timeinfo);
-    
+    localtime_r(&now, &timeinfo);
+
     char timeStr[20];
     strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
 
@@ -148,7 +142,7 @@ void publishStatus() {
 
     if (client.publish(mqttStateTopic.c_str(), statusMessage.c_str())) {
         Serial.println("Status publish successful");
-        logError("Status publish successful");
+        logError("Status publish successful: "  + statusMessage);
     } else {
         Serial.println("Status publish failed");
         logError("Status publish failed");
