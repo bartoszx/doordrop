@@ -58,17 +58,49 @@ Once DoorDrop is set up, it will start monitoring specified email addresses for 
 - **Automation Example:** When a shipment number is found in the database, it triggers an automation. Here is an example based on the sensor:
   
     ```yaml
-    - id: '1659731095265'
-      alias: Open Gate Script Call
-      description: ''
-      trigger:
-      - platform: state
-        entity_id: sensor.shipment_tracker
-        to: 'authorized'
-      condition: []
-      action:
-      - service: script.gate_cancel_ring_send_voice
-        data: {}
+        alias: DoorDrop Autoryzacja
+        description: DoorDrop Autoryzacja
+        trigger:
+          - platform: state
+            entity_id: sensor.shipment_tracker
+        condition: []
+        action:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: sensor.shipment_tracker
+                    state: authorized
+                sequence:
+                  - service: dahua_vto.open_door
+                    data:
+                      entity_id: sensor.furtka
+                      channel: 1
+                      short_number: HA
+                  - service: dahua_vto.send_command
+                    data:
+                      entity_id: sensor.furtka
+                      method: console.runCmd
+                      params:
+                        command: hc
+                  - delay: "00:00:02"
+                  - service: shell_command.play_autoryzacja
+                    data: {}
+              - conditions:
+                  - condition: state
+                    entity_id: sensor.shipment_tracker
+                    state: unauthorized
+                sequence:
+                  - service: shell_command.play_nonautoryzacja
+                    data: {}
+                  - service: dahua_vto.send_command
+                    data:
+                      entity_id: sensor.furtka
+                      method: console.runCmd
+                      params:
+                        command: call 9901
+                      event: false
+        mode: single
+
     ```
 
 ### Debugging
