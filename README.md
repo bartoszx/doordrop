@@ -18,6 +18,9 @@ To use the DoorDrop integration, you need:
 - Access to a MySQL database.
 - An IoT device (barcode scanner) configured to communicate with the DoorDrop integration. Detailed instructions can be found in the `scanner` directory within the repository.
 
+![](https://www.dropbox.com/s/mjzk9frnqgk7bv0/IMG_8169.jpeg?dl=0&raw=1)
+![](https://www.dropbox.com/scl/fi/iiklwqu6oqruxzwgi2u1v/IMG_8167.jpeg?rlkey=55nu43rh9skxs68jxxz8xrsbg&dl=0&raw=1)
+
 ## Installation
 
 To install DoorDrop:
