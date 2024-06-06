@@ -7,6 +7,7 @@
 #include <LittleFS.h>
 #include <ArduinoOTA.h>
 #include "mqtt.h"
+#include <time.h>
 #include "secrets.h"
 #include "led_control.h"
 #include <deque>
@@ -23,7 +24,7 @@
 #define BARCODE_RX D4
 
 // Timing definitions
-#define MOTION_DELAY_MS 5000 // 5 seconds
+#define MOTION_DELAY_MS 25000 // 25 seconds
 #define SCAN_DURATION_MS 10000 // 10 seconds
 
 // LCD message
@@ -31,6 +32,7 @@
 
 // MQTT Topics
 #define STATUS_TOPIC "doordrop/status"
+#define STATE_TOPIC "doordrop/state"
 
 // Global variables
 SoftwareSerial barcodeScanner(BARCODE_TX, BARCODE_RX);
@@ -264,7 +266,7 @@ void connectToWiFi() {
 
         setupServer(); // Start the server on the target network
 
-        mqttInit(mqttHost.c_str(), mqttPort, mqttUser.c_str(), mqttPassword.c_str(), mqttTopic.c_str(), mqttStatusTopic.c_str());
+        mqttInit(mqttHost.c_str(), mqttPort, mqttUser.c_str(), mqttPassword.c_str(), mqttTopic.c_str(), mqttStatusTopic.c_str(), STATE_TOPIC); // Add state topic argument
         mqttConnected = mqttConnect();
         if (!mqttConnected) {
             logError("Failed to connect to MQTT");
@@ -350,11 +352,24 @@ void setup() {
     lcd.setCursor(0, 0);
     lcd.print("Connecting...");
 
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+
+    // Set the time zone to CET
+    setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+    tzset();
+
+
     connectToWiFi();
     setupOTA();
+
+    logError("Setup completed");
+
 }
 
 void loop() {
+
+    checkMqttConnection(); // Ensure MQTT connection
+
     if (mqttConnected) {
         mqttLoop(); // MQTT message handling
 
@@ -437,6 +452,7 @@ void loop() {
     ArduinoOTA.handle();
     delay(100); // Reduced delay to respond faster to motion
 }
+
 
 bool isAlphaNumericStr(String str) {
     for (int i = 0; i < str.length(); i++) {
