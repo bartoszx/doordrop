@@ -72,6 +72,8 @@ void mqttInit(const char* server, int port, const char* user, const char* passwo
 bool mqttConnect() {
     Serial.println("Connecting to MQTT...");
     logError("Connecting to MQTT...");
+    client.setKeepAlive( 90 ); // setting keep alive to 90 seconds
+    client.connect( "ESP8266Client", mqttUser, mqttPassword );
     if (client.connect("ESP8266Client", mqttUser, mqttPassword)) {
         Serial.println("MQTT connected");
         logError("MQTT connected");
