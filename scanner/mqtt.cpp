@@ -7,13 +7,14 @@
 #include "mqtt.h"
 #include "led_control.h"
 
-const char* mqttServer;
+String mqttServer;
 int mqttPort;
-const char* mqttUser;
-const char* mqttPassword;
+String mqttUser;
+String mqttPassword;
 String mqttTopic;
 String mqttStatusTopic;
 String mqttStateTopic;
+
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -56,30 +57,34 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void mqttInit(const char* server, int port, const char* user, const char* password, const char* topic, const char* statusTopic, const char* stateTopic) {
-    mqttServer = server;
+    mqttServer = String(server);
     mqttPort = port;
-    mqttUser = user;
-    mqttPassword = password;
+    mqttUser = String(user);
+    mqttPassword = String(password);
     mqttTopic = String(topic);
     mqttStatusTopic = String(statusTopic);
     mqttStateTopic = String(stateTopic);
-    client.setServer(mqttServer, mqttPort);
-    client.setCallback(mqttCallback); // Set the callback function
+    client.setServer(mqttServer.c_str(), mqttPort);
+    client.setCallback(mqttCallback);
+    
     Serial.println("MQTT initialized");
     logError("MQTT initialized");
 }
+
+
+
 
 bool mqttConnect() {
     while (!client.connected()) {
         Serial.println("Attempting MQTT connection...");
         logError("Attempting MQTT connection...");
-        
+
         // Create a random client ID
         String clientId = "ESP8266Client-";
         clientId += String(random(0xffff), HEX);
         
         // Attempt to connect
-        if (client.connect(clientId.c_str(), mqttUser, mqttPassword)) {
+        if (client.connect(clientId.c_str(), mqttUser.c_str(), mqttPassword.c_str())) {
             Serial.println("MQTT connected");
             logError("MQTT connected");
             // Once connected, publish an announcement...
@@ -96,6 +101,9 @@ bool mqttConnect() {
     // If the loop exits for any reason, return false
     return false;
 }
+
+
+
 
 
 void checkMqttConnection() {

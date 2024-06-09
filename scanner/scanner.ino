@@ -233,6 +233,7 @@ void connectToWiFi() {
     String mqttStatusTopic = file.readStringUntil('\n');
     file.close();
 
+    // Trim whitespace from the ends
     ssid.trim();
     password.trim();
     mqttHost.trim();
@@ -242,7 +243,26 @@ void connectToWiFi() {
     mqttTopic.trim();
     mqttStatusTopic.trim();
 
+    // Convert mqttPortStr to integer
     int mqttPort = mqttPortStr.toInt();
+
+    // Log the read variables
+    Serial.print("Read SSID: ");
+    Serial.println(ssid);
+    Serial.print("Read Password: ");
+    Serial.println(password);
+    Serial.print("Read MQTT Host: ");
+    Serial.println(mqttHost);
+    Serial.print("Read MQTT Port: ");
+    Serial.println(mqttPort);
+    Serial.print("Read MQTT User: ");
+    Serial.println(mqttUser);
+    Serial.print("Read MQTT Password: ");
+    Serial.println(mqttPassword);
+    Serial.print("Read MQTT Topic: ");
+    Serial.println(mqttTopic);
+    Serial.print("Read MQTT Status Topic: ");
+    Serial.println(mqttStatusTopic);
 
     Serial.print("Connecting to ");
     Serial.println(ssid);
@@ -280,6 +300,8 @@ void connectToWiFi() {
         setupServer();
     }
 }
+
+
 
 void reconnectWiFiAndMQTT() {
     while (WiFi.status() != WL_CONNECTED || !mqttConnected) {
