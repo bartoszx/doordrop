@@ -273,7 +273,8 @@ void connectToWiFi() {
 
     unsigned long startAttemptTime = millis();
 
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 20000) { // Increase to 20 seconds
+    // Wait for connection to WiFi
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 20000) {
         delay(1000);
         Serial.print(".");
     }
@@ -287,19 +288,22 @@ void connectToWiFi() {
         setupServer(); // Start the server on the target network
 
         mqttInit(mqttHost.c_str(), mqttPort, mqttUser.c_str(), mqttPassword.c_str(), mqttTopic.c_str(), mqttStatusTopic.c_str(), STATE_TOPIC); // Add state topic argument
-        mqttConnected = mqttConnect();
-        if (!mqttConnected) {
-            logError("Failed to connect to MQTT");
-            reconnectWiFiAndMQTT();
-        } else {
-            logError("Connected to MQTT");
+
+        // Retry MQTT connection until successful
+        while (!mqttConnected) {
+            mqttConnected = mqttConnect();
+            if (!mqttConnected) {
+                delay(5000);
+            }
         }
+        logError("Connected to MQTT");
     } else {
         logError("Failed to connect to WiFi, starting AP...");
         startAP();
         setupServer();
     }
 }
+
 
 
 

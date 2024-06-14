@@ -75,12 +75,13 @@ void mqttInit(const char* server, int port, const char* user, const char* passwo
 
 
 bool mqttConnect() {
-    while (!client.connected()) {
+    if (!client.connected()) {
         Serial.println("Attempting MQTT connection...");
         logError("Attempting MQTT connection...");
-
+        
+        
         // Create a random client ID
-        String clientId = "ESP8266Client-";
+        String clientId = "Barcode-";
         clientId += String(random(0xffff), HEX);
         
         // Attempt to connect
@@ -94,13 +95,11 @@ bool mqttConnect() {
             String error = "MQTT connect failed, rc=" + String(client.state()) + " try again in 5 seconds";
             Serial.println(error);
             logError(error);
-            // Wait 5 seconds before retrying
-            delay(5000);
         }
     }
-    // If the loop exits for any reason, return false
-    return false;
+    return client.connected();
 }
+
 
 
 
