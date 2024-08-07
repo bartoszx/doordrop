@@ -91,13 +91,32 @@ class ShipmentTrackerSensor(Entity):
     async def async_added_to_hass(self):
         _LOGGER.debug("Adding to hass: %s", self._name)
         await self._coordinator.async_config_entry_first_refresh()
-        self._subscription = await async_subscribe(self.hass, self._mqtt_topic, self.on_message)
-        _LOGGER.debug("Subscribed to MQTT topic: %s", self._mqtt_topic)
+        try:
+            self._subscription = await async_subscribe(self.hass, self._mqtt_topic, self.on_message)
+            _LOGGER.debug("Subscribed to MQTT topic: %s", self._mqtt_topic)
+        except Exception as e:
+            _LOGGER.error("Failed to subscribe to MQTT topic: %s", str(e))
+            self._subscription = None
+        _LOGGER.debug("Subscription set to: %s", self._subscription)
+
+
+
 
     async def async_will_remove_from_hass(self):
         _LOGGER.debug("Removing from hass: %s", self._name)
         if self._subscription is not None:
-            await self._subscription()
+            try:
+                _LOGGER.debug("Unsubscribing from MQTT topic: %s", self._mqtt_topic)
+                await self._subscription()
+            except Exception as e:
+                _LOGGER.error("Error unsubscribing from MQTT: %s", e)
+        else:
+            _LOGGER.debug("Subscription is None, nothing to unsubscribe.")
+        _LOGGER.debug("Sensor %s removed from hass", self._name)
+
+
+
+
 
     async def on_message(self, message):
         """Handle incoming MQTT messages."""
