@@ -9,43 +9,74 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.components.mqtt import async_publish, async_subscribe
+from homeassistant.const import ATTR_ATTRIBUTION
 from .const import (
     CONF_IMAP_HOST, CONF_IMAP_PORT, CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD,
     CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME,
-    CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, AUTHORIZED_BARCODES
+    CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC, AUTHORIZED_BARCODES,
+    DOMAIN
 )
 from .patterns import PATTERNS, CUSTOM_PATTERNS
 from .search_patterns import find_tracking_code
 
 _LOGGER = logging.getLogger(__name__)
 
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Set up the sensor platform (legacy method)."""
+    _LOGGER.debug("Setting up DoorDrop sensor platform (legacy method)")
+    return True
+
 async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_entities):
     """Set up the sensor platform from a config entry."""
-    config = config_entry.data
+    _LOGGER.debug("Setting up DoorDrop sensor platform")
+    
+    try:
+        config = config_entry.data
+        _LOGGER.debug("Config data: %s", config)
 
-    imap_username = config[CONF_IMAP_USERNAME]
-    imap_password = config[CONF_IMAP_PASSWORD]
-    imap_host = config[CONF_IMAP_HOST]
-    imap_port = config[CONF_IMAP_PORT]
-    db_host = config[CONF_DB_HOST]
-    db_port = config[CONF_DB_PORT]
-    db_username = config[CONF_DB_USERNAME]
-    db_password = config[CONF_DB_PASSWORD]
-    db_name = config[CONF_DB_NAME]
-    scan_interval = config[CONF_SCAN_INTERVAL]
-    mqtt_topic = config[CONF_MQTT_TOPIC]
-    mqtt_status_topic = config[CONF_MQTT_STATUS_TOPIC]
-    authorized_barcodes = config.get(AUTHORIZED_BARCODES, "")
+        # Check if all required config values are present
+        required_fields = [
+            CONF_IMAP_USERNAME, CONF_IMAP_PASSWORD, CONF_IMAP_HOST, CONF_IMAP_PORT,
+            CONF_DB_HOST, CONF_DB_PORT, CONF_DB_USERNAME, CONF_DB_PASSWORD, CONF_DB_NAME,
+            CONF_SCAN_INTERVAL, CONF_MQTT_TOPIC, CONF_MQTT_STATUS_TOPIC
+        ]
+        
+        missing_fields = [field for field in required_fields if field not in config]
+        if missing_fields:
+            _LOGGER.error("Missing required configuration fields: %s", missing_fields)
+            return False
 
-    sensor = ShipmentTrackerSensor(
-        hass, "Shipment Tracker", imap_username, imap_password, imap_host, imap_port,
-        db_host, db_port, db_username, db_password, db_name,
-        scan_interval, mqtt_topic, mqtt_status_topic, authorized_barcodes
-    )
+        imap_username = config[CONF_IMAP_USERNAME]
+        imap_password = config[CONF_IMAP_PASSWORD]
+        imap_host = config[CONF_IMAP_HOST]
+        imap_port = config[CONF_IMAP_PORT]
+        db_host = config[CONF_DB_HOST]
+        db_port = config[CONF_DB_PORT]
+        db_username = config[CONF_DB_USERNAME]
+        db_password = config[CONF_DB_PASSWORD]
+        db_name = config[CONF_DB_NAME]
+        scan_interval = config[CONF_SCAN_INTERVAL]
+        mqtt_topic = config[CONF_MQTT_TOPIC]
+        mqtt_status_topic = config[CONF_MQTT_STATUS_TOPIC]
+        authorized_barcodes = config.get(AUTHORIZED_BARCODES, "")
 
-    async_add_entities([sensor], True)
+        _LOGGER.debug("Creating ShipmentTrackerSensor")
+        sensor = ShipmentTrackerSensor(
+            hass, "Shipment Tracker", imap_username, imap_password, imap_host, imap_port,
+            db_host, db_port, db_username, db_password, db_name,
+            scan_interval, mqtt_topic, mqtt_status_topic, authorized_barcodes
+        )
 
-    return True
+        _LOGGER.debug("Adding sensor entity")
+        async_add_entities([sensor], True)
+        
+        _LOGGER.debug("Sensor platform setup complete - returning True")
+
+        return True
+        
+    except Exception as e:
+        _LOGGER.error("Error setting up DoorDrop sensor platform: %s", str(e), exc_info=True)
+        return False
 
 class ShipmentTrackerSensor(Entity):
     def __init__(self, hass, name, imap_username, imap_password, imap_host, imap_port, db_host, db_port, db_username, db_password, db_name, scan_interval, mqtt_topic, mqtt_status_topic, authorized_barcodes):
@@ -78,6 +109,10 @@ class ShipmentTrackerSensor(Entity):
         return self._name
 
     @property
+    def unique_id(self):
+        return f"doordrop_shipment_tracker_{self._name.lower().replace(' ', '_')}"
+
+    @property
     def state(self):
         return self._state
 
@@ -99,9 +134,6 @@ class ShipmentTrackerSensor(Entity):
             self._subscription = None
         _LOGGER.debug("Subscription set to: %s", self._subscription)
 
-
-
-
     async def async_will_remove_from_hass(self):
         _LOGGER.debug("Removing from hass: %s", self._name)
         if self._subscription is not None:
@@ -113,10 +145,6 @@ class ShipmentTrackerSensor(Entity):
         else:
             _LOGGER.debug("Subscription is None, nothing to unsubscribe.")
         _LOGGER.debug("Sensor %s removed from hass", self._name)
-
-
-
-
 
     async def on_message(self, message):
         """Handle incoming MQTT messages."""
